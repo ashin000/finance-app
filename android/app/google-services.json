@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "567192605663",
+    "project_id": "voiceai-3338c",
+    "storage_bucket": "voiceai-3338c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:567192605663:android:bd17b3cd6ec26910f6aa6a",
+        "android_client_info": {
+          "package_name": "com.payvoice.ai.finance"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "567192605663-rnk9ickstjoo42fd81fifvj8gjec60i2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBy1SllOOBgPUDS0MIEYnc0VTfC81NJgo0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "567192605663-rnk9ickstjoo42fd81fifvj8gjec60i2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "567192605663-bf5sv0dsv1asi02p1od10vlcujn93s0u.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.payvoice.ai.finance"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

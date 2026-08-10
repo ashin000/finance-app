@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "567192605663-mj4op7n6jh7avvppe2amss0vvpdka8he.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.payvoice.ai.finance",
+            "certificate_hash": "b57e116afea71b63c10a0527e5ff45dc6b2fa771"
+          }
+        },
+        {
           "client_id": "567192605663-rnk9ickstjoo42fd81fifvj8gjec60i2.apps.googleusercontent.com",
           "client_type": 3
         }

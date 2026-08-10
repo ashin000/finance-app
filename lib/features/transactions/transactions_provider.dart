@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/transaction_model.dart';
 import '../../services/database/database_service.dart';
 import '../../services/sync/sync_service.dart';
+import '../auth/auth_provider.dart';
 
 class TransactionsNotifier extends StateNotifier<List<TransactionModel>> {
   final DatabaseService _db = DatabaseService.instance;
@@ -9,6 +10,9 @@ class TransactionsNotifier extends StateNotifier<List<TransactionModel>> {
 
   TransactionsNotifier() : super([]) {
     loadTransactions();
+    _sync.onNewTransactionsPolled = () {
+      loadTransactions();
+    };
     // Start background polling and auto-sync
     _sync.startAutoSync();
   }
@@ -85,5 +89,6 @@ class TransactionsNotifier extends StateNotifier<List<TransactionModel>> {
 }
 
 final transactionsProvider = StateNotifierProvider<TransactionsNotifier, List<TransactionModel>>((ref) {
+  ref.watch(authProvider);
   return TransactionsNotifier();
 });

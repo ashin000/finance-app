@@ -40,6 +40,7 @@ class SettingsState {
 class SettingsNotifier extends StateNotifier<SettingsState> {
   static const List<String> supportedPackages = [
     "com.google.android.apps.nbu.paisa.user",
+    "com.google.android.apps.nbu.paisa.merchant",
     "com.phonepe.app",
     "net.one97.paytm",
     "in.org.npci.upiapp",

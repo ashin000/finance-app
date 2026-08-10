@@ -4,11 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import androidx.annotation.NonNull
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     private val CHANNEL = "com.payvoice.ai/notifications"
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
@@ -25,6 +25,10 @@ class MainActivity : FlutterActivity() {
                 }
                 "getPendingTransactions" -> {
                     result.success(getPendingTransactions())
+                }
+                "openBiometricSettings" -> {
+                    openBiometricSettings()
+                    result.success(true)
                 }
                 else -> {
                     result.notImplemented()
@@ -52,5 +56,24 @@ class MainActivity : FlutterActivity() {
         // Clear the cache after retrieval
         prefs.edit().putString("flutter.pending_transactions", "[]").apply()
         return listStr
+    }
+
+    private fun openBiometricSettings() {
+        val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            Intent(Settings.ACTION_BIOMETRIC_ENROLL).apply {
+                putExtra(Settings.EXTRA_BIOMETRIC_AUTHENTICATORS_ALLOWED, 
+                    android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            }
+        } else {
+            Intent(Settings.ACTION_SECURITY_SETTINGS)
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            val fallbackIntent = Intent(Settings.ACTION_SECURITY_SETTINGS)
+            fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(fallbackIntent)
+        }
     }
 }

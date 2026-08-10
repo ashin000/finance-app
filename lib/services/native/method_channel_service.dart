@@ -11,6 +11,7 @@ class MethodChannelService {
 
   // Check if NotificationListenerService access is enabled
   Future<bool> isNotificationPermissionGranted() async {
+    if (kIsWeb) return true;
     try {
       final bool granted = await _channel.invokeMethod('isNotificationListenerPermissionGranted');
       return granted;
@@ -22,6 +23,7 @@ class MethodChannelService {
 
   // Request NotificationListenerService access
   Future<void> openNotificationPermissionSettings() async {
+    if (kIsWeb) return;
     try {
       await _channel.invokeMethod('openNotificationListenerSettings');
     } on PlatformException catch (e) {
@@ -31,6 +33,7 @@ class MethodChannelService {
 
   // Fetch and clear transactions parsed natively in background
   Future<List<TransactionModel>> getPendingTransactions() async {
+    if (kIsWeb) return [];
     try {
       final String jsonString = await _channel.invokeMethod('getPendingTransactions');
       final List<dynamic> list = jsonDecode(jsonString) as List<dynamic>;
@@ -45,6 +48,16 @@ class MethodChannelService {
     } catch (e) {
       debugPrint("Failed parsing pending transactions: $e");
       return [];
+    }
+  }
+
+  // Open device biometric/security settings to register fingerprint
+  Future<void> openBiometricSettings() async {
+    if (kIsWeb) return;
+    try {
+      await _channel.invokeMethod('openBiometricSettings');
+    } on PlatformException catch (e) {
+      debugPrint("Failed to open biometric settings: ${e.message}");
     }
   }
 }

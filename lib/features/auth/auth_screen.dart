@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/theme.dart';
+import '../../core/localization/app_localizations.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'auth_provider.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -11,15 +13,17 @@ class AuthScreen extends ConsumerStatefulWidget {
 }
 
 class _AuthScreenState extends ConsumerState<AuthScreen> {
-  final _phoneController = TextEditingController();
-  final _otpController = TextEditingController();
-  bool _isOtpSent = false;
-  String _tempPhone = "";
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _nameController = TextEditingController();
+  bool _isSignUp = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
-    _phoneController.dispose();
-    _otpController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -32,11 +36,20 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     );
   }
 
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
   Future<void> _handleGoogleSignIn() async {
     try {
       await ref.read(authProvider.notifier).signInWithGoogle();
     } catch (e) {
-      _showError("Google Sign-In failed. Please try again.");
+      _showError("Google Sign-In failed.");
     }
   }
 
@@ -48,119 +61,71 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     }
   }
 
-  void _showPhoneLoginDialog() {
-    setState(() {
-      _isOtpSent = false;
-      _phoneController.clear();
-      _otpController.clear();
-    });
+  Future<void> _handleEmailAuth() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final name = _nameController.text.trim();
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: Theme.of(context).cardTheme.color,
-              shape: Theme.of(context).cardTheme.shape,
-              title: Text(
-                _isOtpSent ? "Enter Verification Code" : "Phone Login",
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (!_isOtpSent) ...[
-                    const Text(
-                      "Enter your phone number to receive a verification OTP.",
-                      style: TextStyle(fontSize: 14),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        hintText: "+1 123 456 7890",
-                        prefixIcon: Icon(Icons.phone),
-                      ),
-                    ),
-                  ] else ...[
-                    Text(
-                      "We sent a 6-digit OTP code to $_tempPhone.",
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _otpController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        hintText: "6-digit OTP",
-                        prefixIcon: Icon(Icons.lock_clock),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancel"),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    if (!_isOtpSent) {
-                      if (_phoneController.text.trim().isEmpty) return;
-                      setDialogState(() {
-                        _tempPhone = _phoneController.text.trim();
-                        _isOtpSent = true;
-                      });
-                      setState(() {
-                        _isOtpSent = true;
-                      });
-                    } else {
-                      // Perform mock/actual verification
-                      Navigator.pop(context);
-                      // Log in anonymously as a fallback if Firebase is not linked
-                      ref.read(authProvider.notifier).signInAnonymously();
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryLight,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(_isOtpSent ? "Verify" : "Send OTP"),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+    if (email.isEmpty || password.isEmpty) {
+      _showError("Please enter email/username and password.");
+      return;
+    }
+
+    if (_isSignUp && name.isEmpty) {
+      _showError("Please enter your name.");
+      return;
+    }
+
+    try {
+      if (_isSignUp) {
+        await ref.read(authProvider.notifier).signUpWithEmail(email, password, name);
+      } else {
+        await ref.read(authProvider.notifier).signInWithEmail(email, password);
+      }
+    } catch (e) {
+      String msg = e.toString();
+      if (msg.startsWith('Exception: ')) {
+        msg = msg.substring(11);
+      } else if (e is FirebaseAuthException) {
+        msg = e.message ?? e.toString();
+      }
+      _showError(msg);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(authProvider);
+    final l10n = ref.watch(localizationsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final textPrimary = isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight;
+    final textSecondary = isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight;
+    final accentColor = isDark ? AppTheme.primaryDark : AppTheme.primaryLight;
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFDBEAFE), // Light blue tint
-              Color(0xFFF8FAFC),
-              Color(0xFFEFF6FF),
-            ],
+            colors: isDark
+                ? [
+                    const Color(0xFF0F172A),
+                    const Color(0xFF1E293B),
+                    const Color(0xFF0F172A),
+                  ]
+                : [
+                    const Color(0xFFDBEAFE),
+                    const Color(0xFFF8FAFC),
+                    const Color(0xFFEFF6FF),
+                  ],
           ),
         ),
         child: Center(
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -168,41 +133,41 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cardBg,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.primaryLight.withOpacity(0.15),
+                        color: accentColor.withOpacity(0.15),
                         blurRadius: 32,
                         spreadRadius: 8,
                       )
                     ],
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.settings_voice_rounded,
                     size: 80,
-                    color: AppTheme.primaryLight,
+                    color: accentColor,
                   ),
                 ),
                 const SizedBox(height: 32),
                 
                 // Title
-                const Text(
-                  "PayVoice AI",
+                Text(
+                  l10n.translate('app_title'),
                   style: TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -1,
-                    color: AppTheme.textPrimaryLight,
+                    color: textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   "AI Financial Assistant & Real-time Voice Alerts",
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
-                    color: AppTheme.textSecondaryLight,
+                    color: textSecondary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -215,12 +180,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   decoration: AppTheme.glassDecoration(context: context, opacity: 0.8),
                   child: Column(
                     children: [
-                      const Text(
-                        "Sign In to Continue",
+                      Text(
+                        l10n.translate('sign_in_continue'),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: AppTheme.textPrimaryLight,
+                          color: textPrimary,
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -228,33 +193,100 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       if (state.isLoading)
                         const CircularProgressIndicator()
                       else ...[
+                        if (_isSignUp) ...[
+                          TextField(
+                            controller: _nameController,
+                            style: TextStyle(color: textPrimary),
+                            decoration: InputDecoration(
+                              labelText: l10n.translate('name'),
+                              prefixIcon: const Icon(Icons.person_rounded),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        TextField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          style: TextStyle(color: textPrimary),
+                          decoration: InputDecoration(
+                            labelText: l10n.translate('email'),
+                            prefixIcon: const Icon(Icons.email_rounded),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          style: TextStyle(color: textPrimary),
+                          decoration: InputDecoration(
+                            labelText: l10n.translate('password'),
+                            prefixIcon: const Icon(Icons.lock_rounded),
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded),
+                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: ElevatedButton(
+                            onPressed: _handleEmailAuth,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: accentColor,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              _isSignUp ? l10n.translate('sign_up') : l10n.translate('sign_in'),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        TextButton(
+                          onPressed: () => setState(() => _isSignUp = !_isSignUp),
+                          child: Text(
+                            _isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up",
+                            style: TextStyle(color: accentColor, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        Row(
+                          children: [
+                            Expanded(child: Divider(color: textSecondary.withOpacity(0.3))),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              child: Text("OR", style: TextStyle(color: textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
+                            ),
+                            Expanded(child: Divider(color: textSecondary.withOpacity(0.3))),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
                         // Google Button
                         _AuthButton(
-                          label: "Continue with Google",
+                          label: l10n.translate('continue_google'),
                           icon: Icons.g_mobiledata_rounded,
-                          color: Colors.white,
-                          textColor: AppTheme.textPrimaryLight,
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          color: cardBg,
+                          textColor: textPrimary,
+                          borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
                           onPressed: _handleGoogleSignIn,
                         ),
                         const SizedBox(height: 12),
-                        
-                        // Phone Button
-                        _AuthButton(
-                          label: "Login with Phone",
-                          icon: Icons.phone_android_rounded,
-                          color: AppTheme.primaryLight,
-                          textColor: Colors.white,
-                          onPressed: _showPhoneLoginDialog,
-                        ),
-                        const SizedBox(height: 12),
-                        
+
                         // Guest/Anonymous Button
                         _AuthButton(
-                          label: "Continue as Guest",
+                          label: l10n.translate('continue_guest'),
                           icon: Icons.person_outline_rounded,
                           color: Colors.transparent,
-                          textColor: AppTheme.primaryLight,
+                          textColor: accentColor,
                           onPressed: _handleAnonymousSignIn,
                         ),
                       ],

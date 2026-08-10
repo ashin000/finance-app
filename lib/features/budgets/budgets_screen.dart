@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/theme.dart';
+import '../../core/localization/app_localizations.dart';
 import '../transactions/transactions_provider.dart';
 import 'budgets_provider.dart';
 
@@ -11,6 +12,10 @@ class BudgetsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final budgetState = ref.watch(budgetsProvider);
     final transactions = ref.watch(transactionsProvider);
+    final l10n = ref.watch(localizationsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textSecondary = isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight;
+    final accentColor = isDark ? AppTheme.primaryDark : AppTheme.primaryLight;
 
     // Sum monthly expenses by category
     final now = DateTime.now();
@@ -32,7 +37,7 @@ class BudgetsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Budgets Tracker"),
+        title: Text(l10n.translate('budgets')),
       ),
       body: budgetState.isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -49,12 +54,12 @@ class BudgetsScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           "TOTAL MONTHLY BUDGET LIMIT",
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: AppTheme.textSecondaryLight,
+                            color: textSecondary,
                             letterSpacing: 1.1,
                           ),
                         ),
@@ -67,7 +72,7 @@ class BudgetsScreen extends ConsumerWidget {
                               style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.edit_rounded, color: AppTheme.primaryLight),
+                              icon: Icon(Icons.edit_rounded, color: accentColor),
                               onPressed: () => _showEditBudgetDialog(context, ref, 'Total', budgetState.totalBudget),
                             ),
                           ],
@@ -111,7 +116,7 @@ class BudgetsScreen extends ConsumerWidget {
                                   ],
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.edit_rounded, size: 18, color: AppTheme.primaryLight),
+                                  icon: Icon(Icons.edit_rounded, size: 18, color: accentColor),
                                   onPressed: () => _showEditBudgetDialog(context, ref, cat, limit),
                                 ),
                               ],
@@ -119,9 +124,9 @@ class BudgetsScreen extends ConsumerWidget {
                             const SizedBox(height: 10),
 
                             if (limit == 0)
-                              const Text(
+                              Text(
                                 "No budget limit configured.",
-                                style: TextStyle(color: AppTheme.textSecondaryLight, fontSize: 13, fontStyle: FontStyle.italic),
+                                style: TextStyle(color: textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
                               )
                             else ...[
                               // Progress details
@@ -180,7 +185,7 @@ class BudgetsScreen extends ConsumerWidget {
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
               labelText: "Monthly Limit (₹)",
-              prefixIcon: Icon(Icons.attach_money_rounded),
+              prefixIcon: Icon(Icons.currency_rupee_rounded),
             ),
           ),
           actions: [

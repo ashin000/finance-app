@@ -2,13 +2,13 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../models/transaction_model.dart';
 
 class DatabaseService {
-  static const String _txBoxName = 'transactions';
   
   // Singleton instance
   static final DatabaseService instance = DatabaseService._internal();
   DatabaseService._internal();
 
   late Box<TransactionModel> _txBox;
+  late Box _localUsersBox;
 
   Future<void> init() async {
     await Hive.initFlutter();
@@ -17,9 +17,36 @@ class DatabaseService {
     if (!Hive.isAdapterRegistered(0)) {
       Hive.registerAdapter(TransactionModelAdapter());
     }
+
+    // Open local users box
+    _localUsersBox = await Hive.openBox('local_users');
     
-    // Open boxes
-    _txBox = await Hive.openBox<TransactionModel>(_txBoxName);
+    // Open default/guest box initially
+    await openUserBox('default');
+  }
+
+  // Local User Registry helpers
+  Future<void> registerLocalUser(String email, String password, String name, String uid) async {
+    await _localUsersBox.put(email.toLowerCase().trim(), {
+      'email': email.trim(),
+      'password': password,
+      'name': name.trim(),
+      'uid': uid,
+    });
+  }
+
+  Map<dynamic, dynamic>? getLocalUser(String email) {
+    final data = _localUsersBox.get(email.toLowerCase().trim());
+    if (data != null) {
+      return Map<dynamic, dynamic>.from(data);
+    }
+    return null;
+  }
+
+  Future<void> openUserBox(String uid) async {
+    final cleanUid = uid.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+    final boxName = 'transactions_$cleanUid';
+    _txBox = await Hive.openBox<TransactionModel>(boxName);
   }
 
   // Transaction CRUD Operations

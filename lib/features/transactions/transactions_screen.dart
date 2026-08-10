@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/theme.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../models/transaction_model.dart';
 import 'transactions_provider.dart';
 import 'package:intl/intl.dart';
@@ -36,6 +37,10 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   @override
   Widget build(BuildContext context) {
     final transactions = ref.watch(transactionsProvider);
+    final l10n = ref.watch(localizationsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight;
+    final textSecondary = isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight;
 
     // Apply filtering & searching logic
     final filtered = transactions.where((tx) {
@@ -66,7 +71,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Transactions Log"),
+        title: Text(l10n.translate('recent_transactions')),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
@@ -107,16 +112,16 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           // Horizontal Quick Filter Chips
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
             child: Row(
               children: [
-                _buildFilterChip("All", _selectedType == 'All', (val) {
+                _buildFilterChip(l10n.translate('all'), _selectedType == 'All', (val) {
                   setState(() => _selectedType = 'All');
                 }),
-                _buildFilterChip("Income", _selectedType == 'Income', (val) {
+                _buildFilterChip(l10n.translate('income'), _selectedType == 'Income', (val) {
                   setState(() => _selectedType = 'Income');
                 }),
-                _buildFilterChip("Expense", _selectedType == 'Expense', (val) {
+                _buildFilterChip(l10n.translate('expense'), _selectedType == 'Expense', (val) {
                   setState(() => _selectedType = 'Expense');
                 }),
               ],
@@ -171,8 +176,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           // Transactions List
           Expanded(
             child: filtered.isEmpty
-                ? const Center(
-                    child: Text("No transactions match the selected filters."),
+                ? Center(
+                    child: Text(l10n.translate('no_transactions_match_filters')),
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -225,7 +230,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                                   ),
                                   Text(
                                     tx.category,
-                                    style: const TextStyle(fontSize: 10, color: AppTheme.textSecondaryLight),
+                                    style: TextStyle(fontSize: 10, color: textSecondary),
                                   ),
                                 ],
                               ),
@@ -244,32 +249,52 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   }
 
   Widget _buildFilterChip(String label, bool isSelected, Function(bool) onSelected) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = isDark ? AppTheme.primaryDark : AppTheme.primaryLight;
+    final chipBg = isDark ? const Color(0xFF1E293B) : Colors.grey.shade100;
+    final textColor = isSelected 
+        ? (isDark ? AppTheme.primaryDark : AppTheme.primaryLight)
+        : (isDark ? Colors.white70 : Colors.black87);
+
     return Padding(
       padding: const EdgeInsets.only(right: 8.0),
       child: FilterChip(
-        label: Text(label, style: const TextStyle(fontSize: 13)),
+        label: Text(
+          label, 
+          style: TextStyle(
+            fontSize: 13, 
+            color: textColor, 
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal
+          )
+        ),
         selected: isSelected,
         onSelected: onSelected,
-        selectedColor: AppTheme.primaryLight.withOpacity(0.15),
-        checkmarkColor: AppTheme.primaryLight,
-        backgroundColor: Colors.grey.shade100,
+        selectedColor: accentColor.withOpacity(0.15),
+        checkmarkColor: accentColor,
+        backgroundColor: chipBg,
       ),
     );
   }
 
   void _showTransactionDetailsBottomSheet(BuildContext context, TransactionModel tx) {
+    final l10n = ref.read(localizationsProvider);
     String currentCategory = tx.category;
+
+    final isDarkOuter = Theme.of(context).brightness == Brightness.dark;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: isDarkOuter ? const Color(0xFF1E293B) : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final textSecondary = isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight;
+
             return Padding(
               padding: EdgeInsets.only(
                 left: 20,
@@ -321,31 +346,31 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   const SizedBox(height: 24),
 
                   // Metadata Detail Rows
-                  _buildDetailRow("Source App", tx.upiApp),
-                  _buildDetailRow("Bank Account", tx.bank.isNotEmpty ? tx.bank : "N/A"),
-                  _buildDetailRow("Party Details", tx.sender.isNotEmpty ? tx.sender : (tx.receiver.isNotEmpty ? tx.receiver : "N/A")),
-                  _buildDetailRow("Time & Date", DateFormat('dd MMMM yyyy, hh:mm a').format(tx.timestamp)),
-                  _buildDetailRow("Sync Status", tx.isSynced ? "Synced to Cloud" : "Stored Offline Only"),
+                  _buildDetailRow(context, "Source App", tx.upiApp),
+                  _buildDetailRow(context, "Bank Account", tx.bank.isNotEmpty ? tx.bank : "N/A"),
+                  _buildDetailRow(context, "Party Details", tx.sender.isNotEmpty ? tx.sender : (tx.receiver.isNotEmpty ? tx.receiver : "N/A")),
+                  _buildDetailRow(context, "Time & Date", DateFormat('dd MMMM yyyy, hh:mm a').format(tx.timestamp)),
+                  _buildDetailRow(context, "Sync Status", tx.isSynced ? "Synced to Cloud" : "Stored Offline Only"),
                   
                   const SizedBox(height: 16),
-                  const Text("Raw Notification Text:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  Text(l10n.translate('raw_notification_text'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 4),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: isDark ? const Color(0xFF1E293B) : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       tx.notificationText,
-                      style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                      style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: textSecondary),
                     ),
                   ),
 
                   const SizedBox(height: 20),
                   // Dropdown to override Category
-                  const Text("Change Category Override (AI Refinement):", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  Text(l10n.translate('change_category_override'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: currentCategory,
@@ -385,7 +410,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                         ),
                       ),
                       icon: const Icon(Icons.delete_outline_rounded),
-                      label: const Text("Delete Record", style: TextStyle(fontWeight: FontWeight.bold)),
+                      label: Text(l10n.translate('delete_record'), style: const TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -397,13 +422,15 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(BuildContext context, String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textSecondary = isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: AppTheme.textSecondaryLight, fontSize: 13)),
+          Text(label, style: TextStyle(color: textSecondary, fontSize: 13)),
           Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
         ],
       ),

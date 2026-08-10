@@ -13,6 +13,7 @@ class SyncService {
   final MethodChannelService _native = MethodChannelService.instance;
 
   Timer? _pollTimer;
+  VoidCallback? onNewTransactionsPolled;
 
   // Start polling background notifications and checking sync status
   void startAutoSync({Duration interval = const Duration(seconds: 10)}) {
@@ -34,8 +35,10 @@ class SyncService {
     if (pending.isNotEmpty) {
       debugPrint("Polled ${pending.length} new transactions from native listener.");
       await _db.saveTransactions(pending);
+      onNewTransactionsPolled?.call();
     }
   }
+
 
   // Sync unsynced offline transactions to Firestore
   Future<void> syncTransactions() async {

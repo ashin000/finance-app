@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/theme.dart';
+import '../../core/localization/app_localizations.dart';
 import '../transactions/transactions_provider.dart';
 import '../../models/transaction_model.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -48,15 +49,19 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> with SingleTi
   @override
   Widget build(BuildContext context) {
     final transactions = ref.watch(transactionsProvider);
+    final l10n = ref.watch(localizationsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textSecondary = isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight;
+    final accentColor = isDark ? AppTheme.primaryDark : AppTheme.primaryLight;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Spending Analytics"),
+        title: Text(l10n.translate('analytics')),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: AppTheme.primaryLight,
-          labelColor: AppTheme.primaryLight,
-          unselectedLabelColor: AppTheme.textSecondaryLight,
+          indicatorColor: accentColor,
+          labelColor: accentColor,
+          unselectedLabelColor: textSecondary,
           tabs: const [
             Tab(text: "Daily"),
             Tab(text: "Weekly"),
@@ -315,6 +320,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> with SingleTi
   }
 
   Widget _buildHighlightRow(String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textSecondary = isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -322,7 +329,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> with SingleTi
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(color: AppTheme.textSecondaryLight, fontWeight: FontWeight.w500)),
+            Text(label, style: TextStyle(color: textSecondary, fontWeight: FontWeight.w500)),
             Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),

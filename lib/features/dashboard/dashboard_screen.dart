@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/theme.dart';
+import '../../core/localization/app_localizations.dart';
+import '../settings/settings_provider.dart';
 import '../transactions/transactions_provider.dart';
 import '../budgets/budgets_provider.dart';
 import '../../services/native/method_channel_service.dart';
+import '../../main.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -41,6 +44,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final transactions = ref.watch(transactionsProvider);
     final budgetState = ref.watch(budgetsProvider);
+    final l10n = ref.watch(localizationsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight;
+    final textSecondary = isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight;
+    final accentColor = isDark ? AppTheme.primaryDark : AppTheme.primaryLight;
 
     // Calculations
     double totalIncome = 0;
@@ -102,24 +110,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Column(
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "Welcome Back",
+                          l10n.translate('welcome_back'),
                           style: TextStyle(
                             fontSize: 14,
-                            color: AppTheme.textSecondaryLight,
+                            color: textSecondary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
-                          "PayVoice Dashboard",
+                          l10n.translate('app_title'),
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimaryLight,
+                            color: textPrimary,
                           ),
                         ),
                       ],
@@ -341,16 +349,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Row(
+                      Row(
                         children: [
-                          Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryLight),
-                          SizedBox(width: 8),
+                          Icon(Icons.auto_awesome_rounded, color: accentColor),
+                          const SizedBox(width: 8),
                           Text(
                             "AI Financial Insights",
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
-                              color: AppTheme.textPrimaryLight,
+                              color: textPrimary,
                             ),
                           ),
                         ],
@@ -380,27 +388,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      "Recent Transactions",
-                      style: TextStyle(
+                    Text(
+                      l10n.translate('recent_transactions'),
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     TextButton(
                       onPressed: () {
-                        // Normally navigates to transactions list
+                        ref.read(tabIndexProvider.notifier).state = 1;
                       },
-                      child: const Text("View All"),
+                      child: Text(l10n.translate('view_all')),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 if (transactions.isEmpty)
-                  const Center(
+                  Center(
                     child: Padding(
-                      padding: EdgeInsets.all(24.0),
-                      child: Text("No transactions recorded yet."),
+                      padding: const EdgeInsets.all(24.0),
+                      child: Text(l10n.translate('no_transactions_recorded')),
                     ),
                   )
                 else
@@ -451,6 +459,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   void _showAddTransactionDialog(BuildContext context) {
+    final l10n = ref.read(localizationsProvider);
     final amountController = TextEditingController();
     final descController = TextEditingController();
     String txType = 'Expense';
@@ -466,7 +475,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             return AlertDialog(
               backgroundColor: Theme.of(context).cardTheme.color,
               shape: Theme.of(context).cardTheme.shape,
-              title: const Text("Add Manual Transaction", style: TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(l10n.translate('add_manual_transaction'), style: const TextStyle(fontWeight: FontWeight.bold)),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -476,7 +485,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         labelText: "Amount (₹)",
-                        prefixIcon: Icon(Icons.attach_money_rounded),
+                        prefixIcon: Icon(Icons.currency_rupee_rounded),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -527,7 +536,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancel"),
+                  child: Text(l10n.translate('cancel')),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -551,7 +560,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: const Text("Save"),
+                  child: Text(l10n.translate('save')),
                 ),
               ],
             );
@@ -575,14 +584,17 @@ class _BalanceMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textSecondary = isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 10,
-            color: AppTheme.textSecondaryLight,
+            color: textSecondary,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -613,6 +625,12 @@ class _QuickActionBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight;
+    final accentColor = isDark ? AppTheme.primaryDark : AppTheme.primaryLight;
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderCol = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+
     return Column(
       children: [
         ElevatedButton(
@@ -620,20 +638,20 @@ class _QuickActionBtn extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             shape: const CircleBorder(),
             padding: const EdgeInsets.all(16),
-            backgroundColor: Colors.white,
-            foregroundColor: AppTheme.primaryLight,
+            backgroundColor: cardBg,
+            foregroundColor: accentColor,
             elevation: 1,
-            side: const BorderSide(color: Color(0xFFE2E8F0)),
+            side: BorderSide(color: borderCol),
           ),
           child: Icon(icon, size: 24),
         ),
         const SizedBox(height: 8),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textPrimaryLight,
+            color: textPrimary,
           ),
         ),
       ],

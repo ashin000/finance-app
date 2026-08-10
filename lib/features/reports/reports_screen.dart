@@ -1,6 +1,9 @@
 import 'dart:io';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/utils/web_helper.dart';
 import '../../core/theme/theme.dart';
 import '../transactions/transactions_provider.dart';
 import '../../models/transaction_model.dart';
@@ -12,6 +15,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:excel/excel.dart' as ex;
+import '../../core/localization/app_localizations.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -30,9 +34,17 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = ref.watch(localizationsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight;
+    final textSecondary = isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight;
+    final accentColor = isDark ? AppTheme.primaryDark : AppTheme.primaryLight;
+    final cardBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF);
+    final borderCol = isDark ? const Color(0xFF334155) : const Color(0xFFDBEAFE);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Export Reports"),
+        title: Text(l10n.translate('export_reports')),
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -44,27 +56,23 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFEFF6FF), Color(0xFFEFF6FF)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: cardBg,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFDBEAFE)),
+                border: Border.all(color: borderCol),
               ),
-              child: const Column(
+              child: Column(
                 children: [
-                  Icon(Icons.analytics_rounded, size: 60, color: AppTheme.primaryLight),
-                  SizedBox(height: 12),
+                  Icon(Icons.analytics_rounded, size: 60, color: accentColor),
+                  const SizedBox(height: 12),
                   Text(
                     "Generate Financial Statements",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textPrimaryLight),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textPrimary),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
                     "Export clean summary statements with all transactions, AI categorizations, and totals.",
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: AppTheme.textSecondaryLight),
+                    style: TextStyle(fontSize: 13, color: textSecondary),
                   ),
                 ],
               ),
@@ -170,22 +178,42 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         return;
       }
 
-      // Generate File Path
-      final tempDir = await getTemporaryDirectory();
       final dateStr = DateFormat('yyyyMMdd_HHmmss').format(now);
       
-      if (_selectedFormat == 'PDF') {
-        final pdfFile = File("${tempDir.path}/PayVoice_Report_$dateStr.pdf");
-        await _generatePdfReport(rangeTxs, pdfFile);
-        await Share.shareXFiles([XFile(pdfFile.path)], text: 'My PayVoice AI PDF Financial Report');
-      } else if (_selectedFormat.contains('Excel')) {
-        final excelFile = File("${tempDir.path}/PayVoice_Report_$dateStr.xlsx");
-        await _generateExcelReport(rangeTxs, excelFile);
-        await Share.shareXFiles([XFile(excelFile.path)], text: 'My PayVoice AI Excel Financial Report');
-      } else { // CSV
-        final csvFile = File("${tempDir.path}/PayVoice_Report_$dateStr.csv");
-        await _generateCsvReport(rangeTxs, csvFile);
-        await Share.shareXFiles([XFile(csvFile.path)], text: 'My PayVoice AI CSV Financial Statement');
+      if (kIsWeb) {
+        if (_selectedFormat == 'PDF') {
+          final bytes = await _generatePdfReport(rangeTxs);
+          downloadFileWeb(bytes, "PayVoice_Report_$dateStr.pdf", "application/pdf");
+        } else if (_selectedFormat.contains('Excel')) {
+          final bytes = await _generateExcelReport(rangeTxs);
+          if (bytes != null) {
+            downloadFileWeb(bytes, "PayVoice_Report_$dateStr.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+          }
+        } else { // CSV
+          final csvStr = await _generateCsvReport(rangeTxs);
+          final bytes = utf8.encode(csvStr);
+          downloadFileWeb(bytes, "PayVoice_Report_$dateStr.csv", "text/csv");
+        }
+      } else {
+        final tempDir = await getTemporaryDirectory();
+        if (_selectedFormat == 'PDF') {
+          final pdfFile = File("${tempDir.path}/PayVoice_Report_$dateStr.pdf");
+          final bytes = await _generatePdfReport(rangeTxs);
+          await pdfFile.writeAsBytes(bytes);
+          await Share.shareXFiles([XFile(pdfFile.path)], text: 'My PayVoice AI PDF Financial Report');
+        } else if (_selectedFormat.contains('Excel')) {
+          final excelFile = File("${tempDir.path}/PayVoice_Report_$dateStr.xlsx");
+          final bytes = await _generateExcelReport(rangeTxs);
+          if (bytes != null) {
+            await excelFile.writeAsBytes(bytes);
+            await Share.shareXFiles([XFile(excelFile.path)], text: 'My PayVoice AI Excel Financial Report');
+          }
+        } else { // CSV
+          final csvFile = File("${tempDir.path}/PayVoice_Report_$dateStr.csv");
+          final csvStr = await _generateCsvReport(rangeTxs);
+          await csvFile.writeAsString(csvStr);
+          await Share.shareXFiles([XFile(csvFile.path)], text: 'My PayVoice AI CSV Financial Statement');
+        }
       }
     } catch (e) {
       debugPrint("Error generating statement: $e");
@@ -200,7 +228,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     }
   }
 
-  Future<void> _generatePdfReport(List<TransactionModel> txs, File file) async {
+  Future<Uint8List> _generatePdfReport(List<TransactionModel> txs) async {
     final pdf = pw.Document();
 
     // Summary Calculations
@@ -289,7 +317,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       ),
     );
 
-    await file.writeAsBytes(await pdf.save());
+    return await pdf.save();
   }
 
   pw.Widget _buildPdfMetric(String title, String val, PdfColor color) {
@@ -302,7 +330,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
-  Future<void> _generateExcelReport(List<TransactionModel> txs, File file) async {
+  Future<List<int>?> _generateExcelReport(List<TransactionModel> txs) async {
     final excel = ex.Excel.createExcel();
     final sheet = excel['Sheet1'];
 
@@ -331,13 +359,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       ]);
     }
 
-    final bytes = excel.save();
-    if (bytes != null) {
-      await file.writeAsBytes(bytes);
-    }
+    return excel.save();
   }
 
-  Future<void> _generateCsvReport(List<TransactionModel> txs, File file) async {
+  Future<String> _generateCsvReport(List<TransactionModel> txs) async {
     final StringBuffer csv = StringBuffer();
     
     // Headers
@@ -355,6 +380,6 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       );
     }
 
-    await file.writeAsString(csv.toString());
+    return csv.toString();
   }
 }

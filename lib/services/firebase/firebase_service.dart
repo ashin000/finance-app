@@ -72,6 +72,83 @@ class FirebaseService {
     }
   }
 
+  Future<UserCredential?> signInWithEmail(String email, String password) async {
+    if (!_isInitialized) return null;
+    try {
+      final userCredential = await auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      await _syncUserProfile(userCredential.user);
+      return userCredential;
+    } catch (e) {
+      debugPrint("Email Sign-in failed: $e");
+      rethrow;
+    }
+  }
+
+  Future<UserCredential?> signUpWithEmail(String email, String password, String name) async {
+    if (!_isInitialized) return null;
+    try {
+      final userCredential = await auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      await userCredential.user?.updateDisplayName(name);
+      final updatedUser = auth.currentUser;
+      await _syncUserProfile(updatedUser);
+      return userCredential;
+    } catch (e) {
+      debugPrint("Email Sign-up failed: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> verifyPhoneNumber({
+    required String phoneNumber,
+    required Function(String verificationId, int? resendToken) onCodeSent,
+    required Function(FirebaseAuthException e) onVerificationFailed,
+    required Function(UserCredential credential) onVerificationCompleted,
+  }) async {
+    if (!_isInitialized) return;
+    try {
+      await auth.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          final userCredential = await auth.signInWithCredential(credential);
+          onVerificationCompleted(userCredential);
+        },
+        verificationFailed: (FirebaseAuthException e) {
+          onVerificationFailed(e);
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          onCodeSent(verificationId, resendToken);
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {},
+      );
+    } catch (e) {
+      debugPrint("Phone verification failed to start: $e");
+      rethrow;
+    }
+  }
+
+  Future<UserCredential?> signInWithPhoneNumber(String verificationId, String smsCode) async {
+    if (!_isInitialized) return null;
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
+      final userCredential = await auth.signInWithCredential(credential);
+      await _syncUserProfile(userCredential.user);
+      return userCredential;
+    } catch (e) {
+      debugPrint("Phone sign-in failed: $e");
+      rethrow;
+    }
+  }
+
+
   Future<void> signOut() async {
     if (!_isInitialized) return;
     await auth.signOut();

@@ -182,9 +182,61 @@ class NotificationService : NotificationListenerService(), TextToSpeech.OnInitLi
         return isTraiHeader || isKnownBank
     }
 
+    private fun isPromotionalOrSpam(text: String): Boolean {
+        val lowerText = text.lowercase()
+        
+        // 1. If it contains clear promotional/marketing phrases, it's spam
+        val spamPhrases = listOf(
+            "up to", "upto", "win up to", "win upto", "chance to", "stand a chance", "lucky winner", 
+            "use code", "apply coupon", "promo code", "gift voucher", "gift card", "reward points", 
+            "cashback points", "bonus points", "supercoins", "scratch card", "pre-approved", "approved for",
+            "valid till", "expires on", "expiring soon", "refer and earn", "invite friends", "refer a friend",
+            "will be credited", "will be debited", "will be deposited", "can get", "to get", "to win", 
+            "to earn", "spin to", "play to", "scratch to", "earn cashback", "instant cash loan", 
+            "get instant loan", "increase your limit", "credit limit up to"
+        )
+        
+        for (phrase in spamPhrases) {
+            if (lowerText.contains(phrase)) {
+                return true
+            }
+        }
+        
+        // 2. If it contains generic spam words but lacks strong transaction evidence, it's spam.
+        // Strong transaction evidence includes: having account/card identifiers, UTR, ref numbers, etc.
+        val hasAcctMarker = lowerText.contains("a/c") || lowerText.contains("account") || lowerText.contains("acct") || lowerText.contains("card")
+        val hasTxnMarker = lowerText.contains("utr") || lowerText.contains("ref") || lowerText.contains("txn") || lowerText.contains("transaction")
+        val isStrongTransaction = hasAcctMarker || hasTxnMarker
+
+        if (!isStrongTransaction) {
+            // General marketing words that are spam when not accompanied by account/txn markers
+            val softSpamKeywords = listOf(
+                "offer", "discount", "promo", "coupon", "bonus", "win", "earn", "loan", "recharge", "shopping"
+            )
+            for (keyword in softSpamKeywords) {
+                if (lowerText.contains(keyword)) {
+                    return true
+                }
+            }
+            
+            // "get Rs X" or "Rs X cashback" without strong transaction indicators is usually spam
+            val getCashbackRegex = Regex("(?:get|win|cashback|flat)\\s*(?:Rs\\.?|INR|₹)?\\s*\\d+", RegexOption.IGNORE_CASE)
+            if (getCashbackRegex.containsMatchIn(text)) {
+                return true
+            }
+        }
+        
+        return false
+    }
+
     private fun parseNotification(title: String?, text: String, packageName: String): ParsedTransaction? {
         val combinedText = if (title.isNullOrEmpty()) text else "$title. $text"
         val cleanText = combinedText.replace(Regex("\\s+"), " ")
+
+        if (isPromotionalOrSpam(cleanText)) {
+            Log.d(TAG, "Notification is identified as promotional or spam: $cleanText. Skipping.")
+            return null
+        }
 
         val textLower = cleanText.lowercase()
         val hasIncomeKeywords = textLower.contains("credited") || 

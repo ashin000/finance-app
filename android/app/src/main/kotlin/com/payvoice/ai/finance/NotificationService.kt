@@ -173,7 +173,6 @@ class NotificationService : NotificationListenerService(), TextToSpeech.OnInitLi
                            lowerTitle.contains("bhim") ||
                            lowerTitle.contains("paisa") ||
                            lowerTitle.contains("transact") ||
-                           lowerTitle.contains("otp") ||
                            lowerTitle.contains("unionb") ||
                            lowerTitle.contains("canara") ||
                            lowerTitle.contains("indianb") ||
@@ -239,34 +238,38 @@ class NotificationService : NotificationListenerService(), TextToSpeech.OnInitLi
         }
 
         val textLower = cleanText.lowercase()
-        val hasIncomeKeywords = textLower.contains("credited") || 
-                               textLower.contains("received") || 
-                               textLower.contains("deposited") || 
-                               textLower.contains("added") || 
-                               textLower.contains("refund") || 
-                               textLower.contains("cashback") ||
-                               textLower.contains("sent you") || 
-                               textLower.contains("paid you") || 
-                               textLower.contains("sent to you") || 
-                               textLower.contains("paid to you") || 
-                               textLower.contains("paid to your") ||
-                               textLower.contains("paid into") ||
-                               textLower.contains("transferred to you") ||
-                               textLower.contains("transferred to your") ||
-                               textLower.contains("sent to your")
+        // Only accept completed transactions with an explicit direction. This prevents
+        // OTPs, PINs, balances, dates, and other numbers from becoming transactions.
+        val isUnsuccessful = listOf(
+            "failed", "declined", "pending", "reversed", "cancelled", "canceled",
+            "requested", "initiated", "processing", "in progress"
+        ).any { textLower.contains(it) }
+        if (isUnsuccessful) {
+            Log.d(TAG, "Notification is not a completed payment. Skipping.")
+            return null
+        }
 
-        val hasExpenseKeywords = textLower.contains("debited") || 
-                                textLower.contains("spent") || 
-                                textLower.contains("withdrawn") ||
-                                textLower.contains("you paid") || 
-                                textLower.contains("paid to") || 
-                                textLower.contains("you sent") || 
-                                textLower.contains("sent to") || 
-                                textLower.contains("you transferred") || 
-                                textLower.contains("transferred to")
+        val hasCreditVerb = Regex("\\b(credited|received|deposited|refunded|refund|cashback)\\b")
+            .containsMatchIn(textLower)
+        val hasCreditPhrase = listOf(
+            "sent you", "paid you", "sent to you", "paid to you", "paid to your",
+            "paid into", "transferred to you", "transferred to your", "sent to your"
+        ).any { textLower.contains(it) }
+        val hasDebitVerb = Regex("\\b(debited|debit|spent|withdrawn|withdrawal|purchased|purchase)\\b")
+            .containsMatchIn(textLower)
+        val hasDebitPhrase = listOf(
+            "you paid", "you have paid", "paid to", "you sent", "sent to", "you transferred",
+            "transferred to", "payment made", "payment to", "money sent"
+        ).any { textLower.contains(it) } ||
+            Regex("\\bpayment\\b.{0,30}\\bto\\b").containsMatchIn(textLower) ||
+            Regex("\\b(?:paid|sent)\\s+(?:(?:Rs\\.?|INR|₹)\\s*|[\\d,])").containsMatchIn(textLower)
 
-        val isCredit = hasIncomeKeywords
-        val isDebit = hasExpenseKeywords && !hasIncomeKeywords
+        val isCredit = hasCreditVerb || hasCreditPhrase
+        val isDebit = (hasDebitVerb || hasDebitPhrase) && !hasCreditPhrase
+        if (isCredit == isDebit) {
+            Log.d(TAG, "Notification has no clear income/expense payment wording. Skipping.")
+            return null
+        }
         
         // If it's an SMS app, enforce keyword match and transactional sender checks
         val isSmsApp = packageName.contains("messaging") || packageName.contains("mms")
@@ -281,24 +284,28 @@ class NotificationService : NotificationListenerService(), TextToSpeech.OnInitLi
             }
         }
 
-        // Amount Regex (matching ₹, Rs, Rs., INR followed by standard amounts like 500, 1,250.00, etc.)
-        val amountRegex = Regex("(?:Rs\\.?|INR|₹)\\s*([\\d,]+(?:\\.\\d{2})?)", RegexOption.IGNORE_CASE)
-        var amountMatch = amountRegex.find(cleanText) ?: (title?.let { amountRegex.find(it) })
-        
-        // Fallback for UPI/Bank apps if prefix is missing
-        if (amountMatch == null) {
-            val fallbackRegex = Regex("(?:paid|sent|debited|received|credited|deposited|added|refunded|cashback|amount|rs)\\s*(?:to|from|of|you|to\\s+you)?\\s*(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{2})?)", RegexOption.IGNORE_CASE)
-            amountMatch = fallbackRegex.find(cleanText) ?: (title?.let { fallbackRegex.find(it) })
-        }
-
-        // Final fallback: just search for any number if from a known financial/bank/UPI app
-        if (amountMatch == null && !isSmsApp) {
-            val genericNumberRegex = Regex("([\\d,]+(?:\\.\\d{2})?)")
-            amountMatch = genericNumberRegex.find(cleanText) ?: (title?.let { genericNumberRegex.find(it) })
-        }
+        // Prefer amounts explicitly attached to payment wording, with currency-formatted
+        // amounts as a fallback. Never fall back to an arbitrary number in the notification.
+        val contextualCurrencyAmountRegex = Regex(
+            "(?:paid|sent|debited|credited|received|deposited|refunded|cashback|purchase(?:d)?|payment|amount)\\b.{0,24}?(?:Rs\\.?|INR|₹)\\s*([\\d,]+(?:\\.\\d{1,2})?)",
+            RegexOption.IGNORE_CASE
+        )
+        val directAmountRegex = Regex(
+            "(?:paid|sent|debited|credited|received|deposited|refunded|cashback|purchase(?:d)?|payment(?:\\s+of)?|amount(?:\\s+of)?)\\s+(?:(?:by|for|of|with)\\s+)?(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)",
+            RegexOption.IGNORE_CASE
+        )
+        val currencyAmountRegex = Regex("(?:Rs\\.?|INR|₹)\\s*([\\d,]+(?:\\.\\d{1,2})?)", RegexOption.IGNORE_CASE)
+        val amountMatch = contextualCurrencyAmountRegex.find(cleanText)
+            ?: directAmountRegex.find(cleanText)
+            ?: currencyAmountRegex.find(cleanText)
+            ?: (title?.let {
+                contextualCurrencyAmountRegex.find(it)
+                    ?: directAmountRegex.find(it)
+                    ?: currencyAmountRegex.find(it)
+            })
 
         val amountStr = amountMatch?.groupValues?.get(1)?.replace(",", "")
-        val amount = amountStr?.toDoubleOrNull() ?: return null
+        val amount = amountStr?.toDoubleOrNull()?.takeIf { it > 0.0 && it.isFinite() } ?: return null
 
         val appName = when {
             packageName.contains("nbu.paisa") -> "Google Pay"
